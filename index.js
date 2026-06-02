@@ -6,7 +6,7 @@ const cors = require('cors'); // Imports the cors library
 const app = express();
 app.use(cors()); // Registers CORS middleware so the frontend = can read responses
 app.use(express.json()); // Enable parsing of JSON request bodies for POST and PUT requests
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -14,6 +14,9 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
+  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('rds.amazonaws.com')
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 app.get('/', (req, res) => {
