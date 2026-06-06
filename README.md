@@ -16,13 +16,15 @@ This is the backend half of the project. For the full project overview, architec
 - PostgreSQL via the `pg` library (connection pooled)
 - `cors` for cross-origin requests
 - `dotenv` for environment variable management
+- `bcrypt` for password hashing
+- `jsonwebtoken` for JWT-based authentication
 - `nodemon` for development auto-reload
 
 ## Project Structure
 
 ~~~
 sharedpalette-backend/
-├── index.js              (Express server, all 20 routes)
+├── index.js              (Express server, all routes including auth)
 ├── Procfile              (Elastic Beanstalk start command)
 ├── .env                  (gitignored, holds DB credentials for local dev)
 ├── .gitignore
@@ -53,6 +55,7 @@ DB_HOST=localhost
 DB_NAME=sharedpalette
 DB_PASSWORD=your_local_password
 DB_PORT=5432
+JWT_SECRET=any_random_string_for_local_dev
 ~~~
 
 ### Database
@@ -115,6 +118,12 @@ All endpoints return JSON. POST and PUT requests expect JSON bodies with `Conten
 - `PUT /messages/:id`
 - `DELETE /messages/:id`
 
+### Authentication
+
+- `POST /signup` creates a new user with hashed password, returns JWT token
+- `POST /login` verifies credentials, returns JWT token
+- `GET /me` returns the logged-in user's info (requires `Authorization: Bearer <token>` header)
+
 ### Response patterns
 
 - GET endpoints return status 200 and either an array of rows or a single row object
@@ -131,6 +140,6 @@ Required prep before deployment:
 1. `Procfile` at the project root with `web: node index.js`
 2. `index.js` reads port from `process.env.PORT` for EB compatibility
 3. SSL config added to the Postgres connection pool (RDS requires SSL)
-4. Environment variables (`DB_USER`, `DB_HOST`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`) set as EB environment properties, not in code
+4. Environment variables (`DB_USER`, `DB_HOST`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`, `JWT_SECRET`) set as EB environment properties, not in code
 
 For the full deployment walkthrough including all the challenges hit along the way, see the [frontend repo README](https://github.com/YMONGUCHI/sharedpalette).

@@ -19,6 +19,29 @@ const pool = new Pool({
     : false,
 });
 
+// Authentication and Authorization
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+// Auth middleware - verifies JWT and attaches user info to request
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // attach user info (userId, email) to the request
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
 app.get('/', (req, res) => {
   res.send('Hi from SharedPalette backend!');
 });
@@ -348,6 +371,117 @@ app.delete('/messages/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
+// ============ SIGNUP ============
+
+// POST /signup - create a new user with hashed password
+app.post('/signup', async (req, res) => {
+  const { name, email, password, is_buyer, is_seller } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' });
+  }
+
+  try {
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert user into database
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password, is_buyer, is_seller)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, is_buyer, is_seller`,
+      [name, email, hashedPassword, is_buyer ?? true, is_seller ?? false]
+    );
+
+    const user = result.rows[0];
+
+    // Create a JWT token for the new user
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({ token, user });
+  } catch (err) {
+    if (err.code === '23505') {
+      // Postgres unique violation (email already exists)
+      return res.status(409).json({ error: 'Email already in use' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Signup failed' });
+  }
+});
+
+// POST /login - verify credentials and return a JWT
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Look up the user by email
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = result.rows[0];
+
+    // Compare the submitted password against the stored hash
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Create a JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Return token + safe user info (no password)
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        is_buyer: user.is_buyer,
+        is_seller: user.is_seller
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// GET /me - return the logged-in user's info (protected route example)
+app.get('/me', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, is_buyer, is_seller FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
 
