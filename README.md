@@ -6,7 +6,7 @@ This is the backend half of the project. For the full project overview, architec
 
 ## Live API
 
-- **Production URL**: http://sharedpalette-env.eba-23gtgcbe.us-west-1.elasticbeanstalk.com
+- **Production URL**: https://dns1np3p6h3lb.cloudfront.net
 - **Frontend**: https://d1mpjs6zvo988o.cloudfront.net
 - **Frontend repo**: [github.com/YMONGUCHI/sharedpalette](https://github.com/YMONGUCHI/sharedpalette)
 
